@@ -7,16 +7,17 @@
             [clojure.tools.logging :as log]
             [datasplash.core :refer :all])
   (:import
-   [org.codehaus.jackson.map.ObjectMapper]
-   [com.google.api.services.bigquery.model
-    TableRow TableFieldSchema TableSchema TimePartitioning]
-   [org.apache.beam.sdk.transforms SerializableFunction]
-   [org.apache.beam.sdk Pipeline]
-   [org.apache.beam.sdk.io.gcp.bigquery
-    BigQueryIO BigQueryIO$Read BigQueryIO$Write
-    BigQueryIO$Write$WriteDisposition
-    BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy]
-   [org.apache.beam.sdk.values PBegin PCollection]))
+    [org.codehaus.jackson.map.ObjectMapper]
+    [com.google.api.services.bigquery.model
+     TableRow TableFieldSchema TableSchema TimePartitioning]
+    [org.apache.beam.sdk.transforms SerializableFunction]
+    [org.apache.beam.sdk Pipeline]
+    [org.apache.beam.sdk.io.gcp.bigquery
+     BigQueryIO BigQueryIO$Read BigQueryIO$Write
+     BigQueryIO$Write$WriteDisposition
+     BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy DynamicDestinations]
+    [org.apache.beam.sdk.values PBegin PCollection ValueInSingleWindow]
+    (datasplash.bq ClojureDynamicDestinations)))
 
 (defn read-bq-raw
   [{:keys [query table standard-sql?] :as options} p]
@@ -146,10 +147,12 @@
 
 (defn ^TimePartitioning ->time-partitioning
   [{:keys [type expiration-ms]
-    :or   {type :day}}]
-  (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
-    (when (int? expiration-ms) (.setExpirationMs tp expiration-ms))
-    tp))
+    :or   {type :day}
+    :as   opts}]
+  (when opts
+    (let [tp (doto (TimePartitioning.) (.setType (-> type name .toUpperCase)))]
+      (when (int? expiration-ms) (.setExpirationMs tp expiration-ms))
+      tp)))
 
 (defn get-bq-table-schema
   "Beware, uses bq util to get the schema!"
@@ -233,3 +236,26 @@
    (let [opts (assoc options :label :write-bq-table)]
      (apply-transform pcoll (write-bq-table-clj-transform to opts) named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
+
+(defn ^DynamicDestinations custom-destination
+  "Creates a new DynamicDestinations instance as described here :
+  https://beam.apache.org/documentation/sdks/javadoc/2.4.0/org/apache/beam/sdk/io/gcp/bigquery/DynamicDestinations.html
+
+  A map of 3 functions should be passed with keys :destination, :table and :schema mapping to the implementation
+  methods getDestination, getTable and getSchema respectively.
+
+  Ex:
+  (def ^TableSchema schema ...)
+  (custom-destination {
+   :destination :timestamp
+   :table       (fn [x] {:qname (str \"project:dataset.table$\" (day x)) :time-partitioning {:type :day}})
+   :schema      (constantly schema)
+  })"
+  [{:keys [destination table schema]}]
+  (letfn
+    [(destFn [^ValueInSingleWindow visw]
+       (destination (.getValue visw)))
+     (tableFn [dest]
+       (let [{:keys [^String qname ^String desc time-partitioning]} (table dest)]
+         (TableDestination. qname desc (->time-partitioning time-partitioning))))]
+    (ClojureDynamicDestinations. destFn tableFn schema)))
