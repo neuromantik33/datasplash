@@ -251,11 +251,11 @@
    :table       (fn [x] {:qname (str \"project:dataset.table$\" (day x)) :time-partitioning {:type :day}})
    :schema      (constantly schema)
   })"
-  [{:keys [destination table schema]}]
+  [{:keys [destination table schema d-coder]}]
   (letfn
     [(destFn [^ValueInSingleWindow visw]
        (destination (.getValue visw)))
      (tableFn [dest]
        (let [{:keys [^String qname ^String desc time-partitioning]} (table dest)]
          (TableDestination. qname desc (->time-partitioning time-partitioning))))]
-    (ClojureDynamicDestinations. destFn tableFn schema)))
+    (ClojureDynamicDestinations. destFn tableFn schema d-coder)))

@@ -3,9 +3,12 @@ package datasplash.bq;
 import clojure.lang.IFn;
 import com.google.api.services.bigquery.model.TableSchema;
 import com.google.common.base.Objects;
+import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.io.gcp.bigquery.DynamicDestinations;
 import org.apache.beam.sdk.io.gcp.bigquery.TableDestination;
 import org.apache.beam.sdk.values.ValueInSingleWindow;
+
+import javax.annotation.Nullable;
 
 import static com.google.common.base.Objects.equal;
 import static org.apache.beam.sdk.repackaged.com.google.common.base.Preconditions.checkNotNull;
@@ -17,11 +20,14 @@ public class ClojureDynamicDestinations extends DynamicDestinations<Object, Obje
     private final IFn destinationFn;
     private final IFn tableFn;
     private final IFn schemaFn;
+    private final Coder<Object> destCoder;
 
-    public ClojureDynamicDestinations(final IFn destinationFn, final IFn tableFn, final IFn schemaFn) {
+    public ClojureDynamicDestinations(final IFn destinationFn, final IFn tableFn, final IFn schemaFn,
+                                      final Coder<Object> destCoder) {
         this.destinationFn = checkNotNull(destinationFn);
         this.tableFn = checkNotNull(tableFn);
         this.schemaFn = checkNotNull(schemaFn);
+        this.destCoder = checkNotNull(destCoder);
     }
 
     @Override
@@ -39,6 +45,12 @@ public class ClojureDynamicDestinations extends DynamicDestinations<Object, Obje
     public TableSchema getSchema(final Object destination) {
         final Object ts = schemaFn.invoke(destination);
         return TableSchema.class.cast(ts);
+    }
+
+    @Nullable
+    @Override
+    public Coder<Object> getDestinationCoder() {
+        return destCoder;
     }
 
     @Override
