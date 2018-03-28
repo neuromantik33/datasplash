@@ -237,7 +237,7 @@
      (apply-transform pcoll (write-bq-table-clj-transform to opts) named-schema opts)))
   ([to pcoll] (write-bq-table to {} pcoll)))
 
-(defn ^DynamicDestinations custom-destination
+(defn ^DynamicDestinations custom-destinations
   "Creates a new DynamicDestinations instance as described here :
   https://beam.apache.org/documentation/sdks/javadoc/2.4.0/org/apache/beam/sdk/io/gcp/bigquery/DynamicDestinations.html
 
@@ -250,12 +250,17 @@
    :destination :timestamp
    :table       (fn [x] {:qname (str \"project:dataset.table$\" (day x)) :time-partitioning {:type :day}})
    :schema      (constantly schema)
+   :d-coder     (make-nippy-coder) ; default
   })"
-  [{:keys [destination table schema d-coder]}]
+  [{:keys [destination table schema d-coder]
+    :or   {d-coder (make-nippy-coder)}}]
   (letfn
     [(destFn [^ValueInSingleWindow visw]
-       (destination (.getValue visw)))
+       (safe-exec (destination (.getValue visw))))
      (tableFn [dest]
-       (let [{:keys [^String qname ^String desc time-partitioning]} (table dest)]
-         (TableDestination. qname desc (->time-partitioning time-partitioning))))]
-    (ClojureDynamicDestinations. destFn tableFn schema d-coder)))
+       (safe-exec
+         (let [{:keys [^String qname ^String desc time-partitioning]} (table dest)]
+           (TableDestination. qname desc (->time-partitioning time-partitioning)))))
+     (schemaFn [dest]
+       (safe-exec (schema dest)))]
+    (ClojureDynamicDestinations. destFn tableFn schemaFn d-coder)))

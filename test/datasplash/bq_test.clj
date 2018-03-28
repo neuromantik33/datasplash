@@ -28,11 +28,11 @@
     (let [schema (bqs/->TableSchema {:fields [{:name "timestamp"
                                                :mode :nullable
                                                :type :timestamp}]})
-          dd     (custom-destination {:destination :timestamp
-                                      :table       (fn [x]
-                                                     {:qname             (str "project:dataset.table$" (day x))
-                                                      :time-partitioning {:type :day}})
-                                      :schema      (constantly schema)})]
+          dd     (custom-destinations {:destination :timestamp
+                                       :table       (fn [x]
+                                                      {:qname             (str "project:dataset.table$" (day x))
+                                                       :time-partitioning {:type :day}})
+                                       :schema      (constantly schema)})]
       (is (instance? DynamicDestinations dd))
       (let [{:keys [jsonTimePartitioning tableSpec]} (->> #inst"2017-07-04T09:14:28" (.getTable dd) bean)]
         (is (= "{\"type\":\"DAY\"}" jsonTimePartitioning))
@@ -42,4 +42,4 @@
                  .getFields
                  first
                  bean
-                 (select-keys  [:name :mode :type])))))))
+                 (select-keys [:name :mode :type])))))))
