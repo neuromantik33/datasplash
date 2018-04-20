@@ -17,7 +17,8 @@
      BigQueryIO$Write$WriteDisposition
      BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy DynamicDestinations]
     [org.apache.beam.sdk.values PBegin PCollection ValueInSingleWindow]
-    (datasplash.bq ClojureDynamicDestinations)))
+    (datasplash.bq ClojureDynamicDestinations)
+    (org.joda.time Duration)))
 
 (defn read-bq-raw
   [{:keys [query table standard-sql?] :as options} p]
@@ -203,7 +204,10 @@
                             (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}
     :time-partitioning {:docstr "Toggles write partitioning for the destination table"
                         :action (fn [transform opts]
-                                  (.withTimePartitioning transform (->time-partitioning opts)))}}))
+                                  (.withTimePartitioning transform (->time-partitioning opts)))}
+    :triggering-frequency {:docstr "Choose the frequency at which file writes are triggered"
+                           :action (fn [transform delay]
+                                     (.withTriggeringFrequency transform (Duration/standardSeconds delay)))}}))
 
 (defn custom-output-fn [cust-fn]
   (sfn (fn [elt]
