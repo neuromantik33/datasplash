@@ -13,7 +13,7 @@
     [org.apache.beam.sdk.transforms SerializableFunction]
     [org.apache.beam.sdk Pipeline]
     [org.apache.beam.sdk.io.gcp.bigquery
-     BigQueryIO BigQueryIO$Read BigQueryIO$Write
+     BigQueryIO BigQueryIO$Read BigQueryIO$Write BigQueryIO$Write$Method
      BigQueryIO$Write$WriteDisposition
      BigQueryIO$Write$CreateDisposition TableRowJsonCoder TableDestination InsertRetryPolicy DynamicDestinations]
     [org.apache.beam.sdk.values PBegin PCollection ValueInSingleWindow]
@@ -169,7 +169,6 @@
   {:append BigQueryIO$Write$WriteDisposition/WRITE_APPEND
    :empty BigQueryIO$Write$WriteDisposition/WRITE_EMPTY
    :truncate BigQueryIO$Write$WriteDisposition/WRITE_TRUNCATE})
-
 (def create-disposition-enum
   {:if-needed BigQueryIO$Write$CreateDisposition/CREATE_IF_NEEDED
    :never BigQueryIO$Write$CreateDisposition/CREATE_NEVER})
@@ -177,37 +176,47 @@
   {:never (InsertRetryPolicy/neverRetry)
    :always (InsertRetryPolicy/alwaysRetry)
    :retry-transient (InsertRetryPolicy/retryTransientErrors)})
+(def method-enum
+  {:default           BigQueryIO$Write$Method/DEFAULT
+   :file-loads        BigQueryIO$Write$Method/FILE_LOADS
+   :streaming-inserts BigQueryIO$Write$Method/STREAMING_INSERTS})
 
 (def write-bq-table-schema
   (merge
-   base-schema
-   {:schema {:docstr "Specifies bq schema."
-             :action (fn [transform schema] (.withSchema transform (->schema schema)))}
-    :write-disposition {:docstr "Choose write disposition."
-                        :enum write-disposition-enum
-                        :action (select-enum-option-fn
-                                 :write-disposition
-                                 write-disposition-enum
-                                 (fn [transform enum] (.withWriteDisposition transform enum)))}
-    :create-disposition {:docstr "Choose create disposition."
-                         :enum create-disposition-enum
-                         :action (select-enum-option-fn
-                                  :create-disposition
-                                  create-disposition-enum
-                                  (fn [transform enum] (.withCreateDisposition transform enum)))}
-    :without-validation {:docstr "Disables validation until runtime."
-                         :action (fn [transform] (.withoutValidation transform))}
-    :retry-policy {:docstr "Specify retry policy for failed insert in streaming"
-                   :action (select-enum-option-fn
-                            :retry-policy
-                            retry-policy-enum
-                            (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}
-    :time-partitioning {:docstr "Toggles write partitioning for the destination table"
-                        :action (fn [transform opts]
-                                  (.withTimePartitioning transform (->time-partitioning opts)))}
-    :triggering-frequency {:docstr "Choose the frequency at which file writes are triggered"
-                           :action (fn [transform delay]
-                                     (.withTriggeringFrequency transform (Duration/standardSeconds delay)))}}))
+    base-schema
+    {:schema               {:docstr "Specifies bq schema."
+                            :action (fn [transform schema] (.withSchema transform (->schema schema)))}
+     :write-disposition    {:docstr "Choose write disposition."
+                            :enum   write-disposition-enum
+                            :action (select-enum-option-fn
+                                      :write-disposition
+                                      write-disposition-enum
+                                      (fn [transform enum] (.withWriteDisposition transform enum)))}
+     :create-disposition   {:docstr "Choose create disposition."
+                            :enum   create-disposition-enum
+                            :action (select-enum-option-fn
+                                      :create-disposition
+                                      create-disposition-enum
+                                      (fn [transform enum] (.withCreateDisposition transform enum)))}
+     :without-validation   {:docstr "Disables validation until runtime."
+                            :action (fn [transform] (.withoutValidation transform))}
+     :retry-policy         {:docstr "Specify retry policy for failed insert in streaming"
+                            :action (select-enum-option-fn
+                                      :retry-policy
+                                      retry-policy-enum
+                                      (fn [transform retrypolicy] (.withFailedInsertRetryPolicy transform retrypolicy)))}
+     :time-partitioning    {:docstr "Toggles write partitioning for the destination table"
+                            :action (fn [transform opts]
+                                      (.withTimePartitioning transform (->time-partitioning opts)))}
+     :triggering-frequency {:docstr "Choose the frequency at which file writes are triggered"
+                            :action (fn [transform delay]
+                                      (.withTriggeringFrequency transform (Duration/standardSeconds delay)))}
+     :method               {:docstr "Choose the method used to write data to BigQuery."
+                            :enum   method-enum
+                            :action (select-enum-option-fn
+                                      :method
+                                      method-enum
+                                      (fn [transform enum] (.withMethod transform enum)))}}))
 
 (defn custom-output-fn [cust-fn]
   (sfn (fn [elt]
